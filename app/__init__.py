@@ -1,9 +1,11 @@
+import os
+
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 
 from app.configs import MyJSONEncoder
-from app.extensions import db
-from app import api
+from app.extensions import db, mail, celery
+
+
 # app = Flask(__name__)
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/app.sqlite'
 # app.config['SECRET_KEY'] = "random string"
@@ -19,20 +21,62 @@ from app import api
 
 #db = SQLAlchemy()
 
+#celery = Celery('tasks', broker="sqla+sqlite:///instance/app.sqlite")
+
+
 def create_app(config=None):
     app = Flask(__name__, instance_relative_config=True)
 
+    app.config['SECRET_KEY'] = "random string"
+    # SQLALCHEMY
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/app.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['SQLALCHEMY_ECHO'] = True
-    app.config['SECRET_KEY'] = "random string"
+    # Celery configuration
+    app.config['CELERY_BROKER_URL'] = "sqla+sqlite:///instance/app.sqlite"
+    app.config['RESULT_BACKEND'] = "db+sqlite:///instance/app.sqlite"
+    # Flask-Mail configuration
+    # app.config['MAIL_SERVER'] = 'smtp.googlemail.com'
+    # app.config['MAIL_PORT'] = 587
+    # app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = 'contact@events.com'
 
+    #celery.conf.update(app.config)
+    init_celery(app)
     db.init_app(app)
+    mail.init_app(app)
     app.json_encoder = MyJSONEncoder
 
+    from app import api
     app.register_blueprint(api.api_blueprint)
 
     return app
+
+def init_celery(app=None):
+    app = app or create_app()
+    celery.conf.broker_url = app.config["CELERY_BROKER_URL"]
+    celery.conf.result_backend = app.config["RESULT_BACKEND"]
+    celery.conf.update(app.config)
+
+    class ContextTask(celery.Task):
+        """Make celery tasks work with Flask app context"""
+
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = ContextTask
+    return celery
+
+# @celery.task
+# def send_async_emailxx(email_data):
+#     with create_app().app_context():
+#         msg = Message(email_data['subject'],
+#                       recipients=email_data['to'],
+#                       body=email_data['body'])
+#         mail.send(msg)
 
 # import os
 #

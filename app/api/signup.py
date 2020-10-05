@@ -5,6 +5,7 @@ from app.api.events import get_event
 from app.api.users import get_user
 from app.extensions import db
 from app.models.Signup import Signup
+from app.tasks.email import send_async_email
 
 
 @api_blueprint.route('/signups', methods= ['GET'])
@@ -29,6 +30,8 @@ def sign_up():
             signup = Signup(user_id=user.id,event_id=event.id)
             db.session.add(signup)
             db.session.commit()
+            __send_notification(user, event, signup.id)
+            __send_invitation(user, event, signup.id)
             return __jsonify(signup), 202
         else:
             return jsonify({"message":"user has been signed up to this event."}), 400
@@ -54,3 +57,29 @@ def __jsonify(signups):
     else:
         signups.setInfo()
     return jsonify(signups)
+
+
+def __send_notification(user, event, signup_id):
+    email_data = {
+        'subject': 'new sign-up',
+        'to': event.email,
+        'body': {"signup_id":signup_id, "user":user.email, "event":event.name}
+    }
+    send_async_email.delay(email_data)
+
+
+def __send_invitation(user, event, signup_id):
+    email_data = {
+        'subject': 'invitation',
+        'to': user.email,
+        'body': {"signup_id":signup_id,
+                 "user":user.email,
+                 "event":{
+                     "name":event.name,
+                     "location":event.location,
+                     "start_time":event.start_time,
+                     "end_time":event.end_time
+                 }
+                 }
+    }
+    send_async_email.delay(email_data)

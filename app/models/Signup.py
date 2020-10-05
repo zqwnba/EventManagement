@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-
 from sqlalchemy import UniqueConstraint
-
-from app import db
+from app.extensions import db
 
 
 @dataclass
