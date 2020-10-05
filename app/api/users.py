@@ -1,36 +1,61 @@
-from flask import jsonify, request
+from flask import request
+from flask_restplus import Resource
 from sqlalchemy.exc import IntegrityError
+from werkzeug.exceptions import BadRequest
 
-from app.api import api_blueprint
+from app.api.restplus import api
+from app.api.serializers import user
 from app.extensions import db
 from app.models.User import User
 
+ns = api.namespace('users', description='Operations related to users')
 
-@api_blueprint.route('/users', methods= ['GET'])
-def show_all_users():
-    return jsonify(User.query.filter(User.delete_flag==0).all()), 200
 
-@api_blueprint.route('/users/<int:user_id>', methods= ['GET'])
-def show_user(user_id):
-    return jsonify(User.query.filter(User.delete_flag==0, User.id == user_id).first_or_404()), 200
+@ns.route('')
+class UsersCollection(Resource):
+    @api.marshal_list_with(user)
+    def get(self):
+        """
+        Returns list of users
+        """
+        return User.query.filter(User.delete_flag==0).all(), 200
 
-@api_blueprint.route('/users', methods= ['POST'])
-def add_user():
-    try:
-        user = User(email=request.json.get('email'))
-        db.session.add(user)
+    @api.response(201, 'User successfully created.')
+    @api.expect(user)
+    def post(self):
+        """
+        Register a new user
+        """
+        try:
+            user = User(email=request.json.get('email'))
+            db.session.add(user)
+            db.session.commit()
+            return None, 201
+        except IntegrityError:
+            db.session.rollback()
+            raise BadRequest("email is existing.")
+
+
+@ns.route('/<int:user_id>')
+@api.response(404, 'User not found.')
+class UserAccount(Resource):
+
+    @api.marshal_with(user)
+    def get(self, user_id):
+        """
+        Retrieve a user
+        """
+        return User.query.filter(User.delete_flag==0, User.id == user_id).first_or_404()
+
+    @api.marshal_with(user)
+    def delete(self, user_id):
+        """
+        Delete a user
+        """
+        user = self.get(user_id)
+        user.delete_flag = 1
         db.session.commit()
-        return jsonify(user), 202
-    except IntegrityError:
-        db.session.rollback()
-        return jsonify({"message":"email is existing."}), 400
-
-@api_blueprint.route('/users/<int:user_id>', methods= ['DELETE'])
-def delete_user(user_id):
-    event = User.query.get_or_404(user_id)
-    event.delete_flag = 1
-    db.session.commit()
-    return jsonify(event), 202
+        return user, 202
 
 def get_user(email):
     return User.query.filter(User.delete_flag==0, User.email == email).one_or_none()

@@ -1,33 +1,21 @@
 import os
 
-from flask import Flask
+from flask import Flask, Blueprint
 
-from app.configs import MyJSONEncoder
+from app.api.restplus import api
 from app.extensions import db, mail, celery
-
-
-# app = Flask(__name__)
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/app.sqlite'
-# app.config['SECRET_KEY'] = "random string"
-#
-# db = SQLAlchemy(app)
-#
-# from app.api.events import events_blueprint
-#
-# app.register_blueprint(events_blueprint)
-#
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
-#db = SQLAlchemy()
-
-#celery = Celery('tasks', broker="sqla+sqlite:///instance/app.sqlite")
-
+from app.api.users import ns as users_namespace
+from app.api.events import ns as events_namespace
+from app.api.signup import ns as signups_namespace
 
 def create_app(config=None):
     app = Flask(__name__, instance_relative_config=True)
 
-    app.config['SECRET_KEY'] = "random string"
+    app.config.from_mapping(
+        SECRET_KEY='dev',
+        DATABASE=os.path.join(app.instance_path, 'app.sqlite'),
+    )
+
     # SQLALCHEMY
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/app.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -43,16 +31,25 @@ def create_app(config=None):
     app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
     app.config['MAIL_DEFAULT_SENDER'] = 'contact@events.com'
 
-    #celery.conf.update(app.config)
+    # ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
     init_celery(app)
     db.init_app(app)
     mail.init_app(app)
-    app.json_encoder = MyJSONEncoder
 
-    from app import api
-    app.register_blueprint(api.api_blueprint)
+    api_blueprint = Blueprint("api", __name__, url_prefix="/api/v1")
+    api.init_app(api_blueprint)
+    api.add_namespace(users_namespace)
+    api.add_namespace(events_namespace)
+    api.add_namespace(signups_namespace)
+    app.register_blueprint(api_blueprint)
 
     return app
+
 
 def init_celery(app=None):
     app = app or create_app()
@@ -69,76 +66,3 @@ def init_celery(app=None):
 
     celery.Task = ContextTask
     return celery
-
-# @celery.task
-# def send_async_emailxx(email_data):
-#     with create_app().app_context():
-#         msg = Message(email_data['subject'],
-#                       recipients=email_data['to'],
-#                       body=email_data['body'])
-#         mail.send(msg)
-
-# import os
-#
-# from flask import Flask
-# #from app.abcdb import sqlite3db
-#
-# from flask_sqlalchemy import SQLAlchemy
-#
-# #import sqlite3
-# #from flask import g
-#
-# #DATABASE = 'instance/app.sqlite'
-# db = SQLAlchemy()
-#
-# def create_app(test_config=None):
-#     # create and configure the app
-#     app = Flask(__name__, instance_relative_config=True)
-#     app.config.from_mapping(
-#         SECRET_KEY='dev',
-#         #DATABASE=os.path.join(app.instance_path, 'app.sqlite'),
-#     )
-#
-#     if test_config is None:
-#         # load the instance config, if it exists, when not testing
-#         app.config.from_pyfile('config.py', silent=True)
-#     else:
-#         # load the test config if passed in
-#         app.config.from_mapping(test_config)
-#
-#     # ensure the instance folder exists
-#     try:
-#         os.makedirs(app.instance_path)
-#     except OSError:
-#         pass
-#
-#     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/app.sqlite'
-#     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-#     app.config['SQLALCHEMY_ECHO'] = True
-#     db.init_app(app)
-#     # with app.app_context():
-#     #     db.init_db_command()
-#     print("init_app done!")
-#     from app.api.events import events_blueprint
-#     app.register_blueprint(events_blueprint)
-#
-#     # def get_db():
-#     #     db = getattr(g, '_database', None)
-#     #     if db is None:
-#     #         db = g._database = sqlite3.connect(DATABASE)
-#     #     return db
-#     #
-#     # @app.teardown_appcontext
-#     # def close_connection(exception):
-#     #     db = getattr(g, '_database', None)
-#     #     if db is not None:
-#     #         db.close()
-#     #
-#     # @app.route('/')
-#     # def index():
-#     #     cur = get_db().execute("select * from event where id = ?", [0])
-#     #     rv = cur.fetchall()
-#     #     cur.close()
-#     #     return rv[0][1]s
-#
-#     return app
