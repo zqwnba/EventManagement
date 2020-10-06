@@ -5,7 +5,8 @@ DROP TABLE IF EXISTS signup;
 CREATE TABLE user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
-    delete_flag INTEGER NOT NULL default 0
+    delete_flag INTEGER NOT NULL default 0,
+    UNIQUE (email)
 );
 
 CREATE TABLE event (
@@ -15,7 +16,8 @@ CREATE TABLE event (
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     email TEXT NOT NULL,
-    delete_flag INTEGER NOT NULL default 0
+    delete_flag INTEGER NOT NULL default 0,
+    UNIQUE (name)
 );
 
 CREATE TABLE signup (

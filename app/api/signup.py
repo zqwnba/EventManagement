@@ -1,11 +1,11 @@
 from flask import request
 from flask_restplus import Resource
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, NotFound
 
-from app.api.events import get_event
+from app.api.events import EventResource
 from app.api.restplus import api
 from app.api.serializers import signup, signup_detail
-from app.api.users import get_user
+from app.api.users import UserAccount
 from app.extensions import db
 from app.models.Signup import Signup
 from app.tasks.email import send_async_email
@@ -19,13 +19,18 @@ class SignupsCollection(Resource):
     @api.marshal_list_with(signup_detail)
     def get(self):
         """
-        Returns event list of a specific user
+        Returns all events
+        Returns all registered events for a specific user
         """
         user_email = request.args.get('email')
         if user_email:
-            return self.setInfo(Signup.query.filter(Signup.user.has(email=user_email)).all()), 200
+            user = UserAccount.get_user(user_email)
+            if user:
+                return self.setInfo(Signup.query.filter(Signup.user_id==user.id).all()), 200
+            else:
+                raise BadRequest("user is not existing.")
         else:
-            return self.setInfo(Signup.query.all()), 200
+            return self.setInfo(Signup.query.filter(Signup.user.has(delete_flag=0), Signup.event.has(delete_flag=0)).all()), 200
 
 
     @api.response(201, 'Sign up successfully.')
@@ -35,8 +40,8 @@ class SignupsCollection(Resource):
         """
         Register to a event
         """
-        user = get_user(request.json.get('user_email'))
-        event = get_event(request.json.get('event_name'))
+        user = UserAccount.get_user(request.json.get('user_email'))
+        event = EventResource.get_event(request.json.get('event_name'))
         if user and event:
             signup = Signup.query.filter(Signup.user_id==user.id, Signup.event_id==event.id).all()
             if not signup:
@@ -59,8 +64,8 @@ class SignupsCollection(Resource):
         """
         Sign out for an event
         """
-        user = get_user(request.json.get('user_email'))
-        event = get_event(request.json.get('event_name'))
+        user = UserAccount.get_user(request.json.get('user_email'))
+        event = EventResource.get_event(request.json.get('event_name'))
         signup = Signup.query.filter(Signup.user_id==user.id, Signup.event_id==event.id).one_or_none()
         if signup:
             db.session.delete(signup)
@@ -114,17 +119,22 @@ class SignupManagement(Resource):
         """
         Retrieve a signup
         """
-        return SignupsCollection.setInfo(Signup.query.get_or_404(signup_id)), 200
+        signup = Signup.query.get(signup_id)
+        if signup:
+            return SignupsCollection.setInfo(signup), 200
+        else:
+            raise NotFound("record is not found.")
 
     @api.marshal_with(signup_detail)
     def delete(self, signup_id):
         """
         Sign out for an event
         """
-        signup = self.get(signup_id)
+        signup = Signup.query.get(signup_id)
         if signup:
+            response = SignupsCollection.setInfo(signup)
             db.session.delete(signup)
             db.session.commit()
-            return SignupsCollection.setInfo(signup), 202
+            return response, 202
         else:
             raise BadRequest("record is not found.")

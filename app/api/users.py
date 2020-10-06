@@ -52,10 +52,11 @@ class UserAccount(Resource):
         """
         Delete a user
         """
-        user = self.get(user_id)
+        user = User.query.filter(User.delete_flag==0, User.id == user_id).first_or_404()
         user.delete_flag = 1
         db.session.commit()
         return user, 202
 
-def get_user(email):
-    return User.query.filter(User.delete_flag==0, User.email == email).one_or_none()
+    @classmethod
+    def get_user(cls, email):
+        return User.query.filter(User.delete_flag==0, User.email == email).one_or_none()

@@ -7,7 +7,7 @@ event = api.model('Event', {
     'location': fields.String(required=True, description='Event location'),
     'start_time': fields.DateTime(required=True, description='Event start time'),
     'end_time': fields.DateTime(required=True, description='Event end time'),
-    'email': fields.String(required=True, attribute='Event contact'),
+    'email': fields.String(required=True, description='Event contact'),
 })
 
 user = api.model('Event User', {
