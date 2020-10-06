@@ -65,5 +65,5 @@ class EventResource(Resource):
         return event, 202
 
     @classmethod
-    def get_event(name):
+    def get_event(cls, name):
         return Event.query.filter(Event.delete_flag==0, Event.name == name).one_or_none()
