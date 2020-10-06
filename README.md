@@ -41,10 +41,18 @@ $ celery -A app.celery_app worker -l INFO
 Then (in separated terminal) start the service locally
 
 ```bash
+$ export FLASK_APP=app
+$ export FLASK_ENV=development
 $ flask run
 ```
+The applications will be running on http://localhost:5000 by default. 
+Use ```flask run -h {HOST} -p {PORT}``` to customize HOST and PORT
 
-The applications will always running on http://localhost:5000
+NOTE: If got error like **```ModuleNotFoundError: No module named 'flask_restplus'```**, please re-entry the virtual env.
+```bash
+$ deactivate
+$ source venv/bin/activate
+```
 
 ## Endpoints
 
